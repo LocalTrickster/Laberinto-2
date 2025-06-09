@@ -10,10 +10,10 @@ export default class Game extends Phaser.Scene {
   }
 
   preload() {
-    this.load.tilemapTiledJSON("map", "public/assets/tilemap/map.json");
-    this.load.image("tileset", "public/assets/texture.png");
+    this.load.tilemapTiledJSON("map", "public/assets/tilemap/primermapa.json");
+    this.load.image("SampleA2", "public/assets/tilemap/SampleA2.png");
     this.load.image("star", "public/assets/star.png");
-
+    this.load.image("exit", "public/assets/exit.png");
     this.load.spritesheet("dude", "./public/assets/dude.png", {
       frameWidth: 32,
       frameHeight: 48,
@@ -22,17 +22,13 @@ export default class Game extends Phaser.Scene {
 
   create() {
     const map = this.make.tilemap({ key: "map" });
-
-    // Parameters are the name you gave the tileset in Tiled and then the key of the tileset image in
-    // Phaser's cache (i.e. the name you used in preload)
-    const tileset = map.addTilesetImage("tileset", "tileset");
-
-    // Parameters: layer name (or index) from Tiled, tileset, x, y
+   
+    const tileset = map.addTilesetImage("SampleA2", "SampleA2", 32, 32, 0, 0);
     const belowLayer = map.createLayer("Fondo", tileset, 0, 0);
     const platformLayer = map.createLayer("Plataformas", tileset, 0, 0);
     const objectsLayer = map.getObjectLayer("Objetos");
 
-    // Find in the Object Layer, the name "dude" and get position
+    
     const spawnPoint = map.findObject(
       "Objetos",
       (obj) => obj.name === "player"
@@ -42,7 +38,7 @@ export default class Game extends Phaser.Scene {
     this.player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, "dude");
 
     this.player.setBounce(0.2);
-    this.player.setCollideWorldBounds(true);
+    
 
     this.anims.create({
       key: "left",
@@ -67,39 +63,41 @@ export default class Game extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
-    platformLayer.setCollisionByProperty({ esColisionable: true });
+    platformLayer.setCollision([71, 4]); 
     this.physics.add.collider(this.player, platformLayer);
+   
+    this.cameras.main.startFollow(this.player);
+    this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-    // tiles marked as colliding
-    /*
-    const debugGraphics = this.add.graphics().setAlpha(0.75);
-    platformLayer.renderDebug(debugGraphics, {
-      tileColor: null, // Color of non-colliding tiles
-      collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
-      faceColor: new Phaser.Display.Color(40, 39, 37, 255), // Color of colliding face edges
-    });
-    */
-
-    // Create empty group of starts
+    
     this.stars = this.physics.add.group();
+    let exitPoint = null;
 
-    // find object layer
-    // if type is "stars", add to stars group
+   
     objectsLayer.objects.forEach((objData) => {
-      console.log(objData);
-      const { x = 0, y = 0, name, type } = objData;
-      switch (type) {
-        case "star": {
-          // add star to scene
-          // console.log("estrella agregada: ", x, y);
-          const star = this.stars.create(x, y, "star");
-          star.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
-          break;
-        }
+      const { x = 0, y = 0, type, name } = objData;
+      if (type === "star") {
+        const star = this.stars.create(x, y, "star");
+        star.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+      }
+      if (name === "salida") {
+        exitPoint = objData;
       }
     });
 
-    // add collision between player and stars
+    
+    if (exitPoint) {
+      this.exit = this.physics.add.staticImage(exitPoint.x, exitPoint.y, "exit");
+      this.exit.setVisible(false); 
+      this.physics.add.overlap(this.player, this.exit, () => {
+        if (this.exit.visible) {
+          
+          this.scene.restart(); 
+        }
+      });
+    }
+
+   
     this.physics.add.collider(
       this.player,
       this.stars,
@@ -107,52 +105,54 @@ export default class Game extends Phaser.Scene {
       null,
       this
     );
-    // add overlap between stars and platform layer
+    
     this.physics.add.collider(this.stars, platformLayer);
 
-    this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
+    this.scoreText = this.add.text(0, 0, `Score: ${this.score}`, {
       fontSize: "32px",
       fill: "#000",
     });
+    this.scoreText.setOrigin(1, 0); 
+    this.scoreText.setScrollFactor(0); 
+    this.scoreText.setPosition(this.cameras.main.width - 16, 16);
   }
 
   update() {
-    // update game objects
     if (this.cursors.left.isDown) {
       this.player.setVelocityX(-160);
-
       this.player.anims.play("left", true);
     } else if (this.cursors.right.isDown) {
       this.player.setVelocityX(160);
-
       this.player.anims.play("right", true);
     } else {
       this.player.setVelocityX(0);
-
       this.player.anims.play("turn");
     }
 
+   
     if (this.cursors.up.isDown) {
-      this.player.setVelocityY(-330);
+      this.player.setVelocityY(-160);
+    } else if (this.cursors.down.isDown) {
+      this.player.setVelocityY(160);
+    } else {
+      this.player.setVelocityY(0);
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyR)) {
-      console.log("Phaser.Input.Keyboard.JustDown(this.keyR)");
       this.scene.restart();
     }
   }
 
   collectStar(player, star) {
     star.disableBody(true, true);
-
     this.score += 10;
     this.scoreText.setText(`Score: ${this.score}`);
 
     if (this.stars.countActive(true) === 0) {
-      //  A new batch of stars to collect
-      this.stars.children.iterate(function (child) {
-        child.enableBody(true, child.x, 0, true, true);
-      });
+      
+      if (this.exit) {
+        this.exit.setVisible(true);
+      }
     }
   }
 }
